@@ -1,0 +1,967 @@
+<title>Cryo Backend — Customer &amp; Subscription Lifecycle</title>
+<style>
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg:#0A141B; --surface:#101E27; --surface-2:#152530; --border:#26404B; --border-strong:#345460;
+      --ink:#E7EFF2; --ink-soft:#A9BCC4; --ink-faint:#6E838B;
+      --customer:#4FD1DF; --customer-soft:#11323944;
+      --admin:#93AEC9; --admin-soft:#1C2C3A;
+      --system:#B39DE8; --system-soft:#241C3B;
+      --gold:#E3A94A; --gold-soft:#33260F;
+      --success:#57C793; --success-soft:#0F3320;
+      --danger:#E2685F; --danger-soft:#391714;
+      --warning:#E3A94A; --warning-soft:#332510;
+      --shadow: 0 1px 0 rgba(0,0,0,.4);
+    }
+  }
+  :root {
+    --bg:#EEF3F5; --surface:#FFFFFF; --surface-2:#F6FAFB; --border:#D6E2E7; --border-strong:#B7C8CE;
+    --ink:#0F1B22; --ink-soft:#4E626B; --ink-faint:#8398A0;
+    --customer:#0C8599; --customer-soft:#DEF2F4;
+    --admin:#3D5A75; --admin-soft:#E4EAF0;
+    --system:#7A5FC4; --system-soft:#ECE6FA;
+    --gold:#AD7A16; --gold-soft:#FBEED9;
+    --success:#2E9E6D; --success-soft:#E1F5EA;
+    --danger:#C6483F; --danger-soft:#FAE7E5;
+    --warning:#C97A1B; --warning-soft:#FBF0DF;
+    --shadow: 0 1px 2px rgba(15,27,34,.06);
+    --font-display: "Segoe UI Semibold","Segoe UI",system-ui,-apple-system,sans-serif;
+    --font-body: "Segoe UI",system-ui,-apple-system,sans-serif;
+    --font-mono: "Cascadia Code","Consolas",ui-monospace,SFMono-Regular,monospace;
+  }
+  :root[data-theme="dark"] {
+    --bg:#0A141B; --surface:#101E27; --surface-2:#152530; --border:#26404B; --border-strong:#345460;
+    --ink:#E7EFF2; --ink-soft:#A9BCC4; --ink-faint:#6E838B;
+    --customer:#4FD1DF; --customer-soft:#11323944;
+    --admin:#93AEC9; --admin-soft:#1C2C3A;
+    --system:#B39DE8; --system-soft:#241C3B;
+    --gold:#E3A94A; --gold-soft:#33260F;
+    --success:#57C793; --success-soft:#0F3320;
+    --danger:#E2685F; --danger-soft:#391714;
+    --warning:#E3A94A; --warning-soft:#332510;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin:0; padding:0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: 15px;
+    line-height: 1.55;
+  }
+  a { color: var(--customer); }
+
+  .shell { display:flex; align-items:flex-start; max-width: 1400px; margin: 0 auto; }
+
+  /* ---------- Sidebar ---------- */
+  nav.toc {
+    position: sticky; top: 0; align-self: flex-start;
+    width: 236px; flex: 0 0 236px;
+    height: 100vh; overflow-y: auto;
+    padding: 28px 14px 28px 24px;
+    border-right: 1px solid var(--border);
+  }
+  .toc-brand { font-family: var(--font-display); font-weight:700; font-size: 15px; letter-spacing:.02em; margin-bottom:2px; }
+  .toc-brand span { color: var(--customer); }
+  .toc-sub { font-size:11.5px; color: var(--ink-faint); margin-bottom:22px; }
+  .toc a {
+    display:block; text-decoration:none; color: var(--ink-soft);
+    font-size: 13px; padding: 6px 10px; border-radius: 7px; margin-bottom:1px;
+  }
+  .toc a:hover { background: var(--surface-2); color: var(--ink); }
+  .toc .num { font-family: var(--font-mono); color: var(--ink-faint); margin-right:8px; font-size:11.5px; }
+
+  main { flex: 1 1 auto; min-width: 0; padding: 40px 48px 100px; }
+
+  /* ---------- Header / hero ---------- */
+  .masthead { margin-bottom: 40px; max-width: 760px; }
+  .eyebrow {
+    font-family: var(--font-display); text-transform: uppercase; letter-spacing:.12em;
+    font-size: 11.5px; color: var(--customer); font-weight:700; margin-bottom:10px;
+  }
+  h1 { font-family: var(--font-display); font-size: 32px; margin: 0 0 12px; text-wrap: balance; letter-spacing:-0.01em; }
+  .masthead p { color: var(--ink-soft); font-size: 15.5px; max-width: 62ch; }
+
+  /* ---------- Legend ---------- */
+  .legend {
+    display:flex; flex-wrap:wrap; gap: 10px 22px;
+    background: var(--surface); border:1px solid var(--border); border-radius: 12px;
+    padding: 16px 20px; margin-bottom: 46px; box-shadow: var(--shadow);
+  }
+  .legend-group { display:flex; align-items:center; gap:8px; font-size: 12.5px; color: var(--ink-soft); }
+  .swatch { width:13px; height:13px; border-radius:4px; border:1.5px solid; flex: 0 0 auto; }
+  .swatch.customer { background: var(--customer-soft); border-color: var(--customer); }
+  .swatch.admin { background: var(--admin-soft); border-color: var(--admin); }
+  .swatch.system { background: var(--system-soft); border-color: var(--system); }
+  .swatch.gold { background: var(--gold-soft); border-color: var(--gold); }
+  .line-sample { width:26px; height:0; border-top: 2px solid var(--ink-faint); }
+  .line-sample.dashed { border-top-style: dashed; }
+
+  /* ---------- Sections ---------- */
+  section { margin-bottom: 76px; scroll-margin-top: 24px; }
+  section .sec-num { font-family: var(--font-mono); color: var(--customer); font-size: 13px; font-weight:700; }
+  h2 { font-family: var(--font-display); font-size: 23px; margin: 4px 0 10px; letter-spacing:-.01em; }
+  .sec-intro { color: var(--ink-soft); max-width: 74ch; margin-bottom: 22px; font-size: 14.5px; }
+
+  figure { margin: 0 0 18px; background: var(--surface); border:1px solid var(--border); border-radius:14px; padding: 22px 22px 16px; box-shadow: var(--shadow); }
+  .diagram-scroll { overflow-x: auto; }
+  figure svg { display:block; max-width:100%; height:auto; margin: 0 auto; }
+  figcaption { font-size: 12.5px; color: var(--ink-faint); margin-top:12px; padding-top:12px; border-top:1px dashed var(--border); }
+
+  .n-title { font: 700 12.5px var(--font-display); fill: var(--ink); }
+  .n-sub { font: 400 10.6px var(--font-body); fill: var(--ink-soft); }
+  .n-code { font: 400 10.2px var(--font-mono); fill: var(--ink-soft); }
+  .lane-label { font: 700 11px var(--font-display); letter-spacing:.07em; fill: var(--ink-faint); }
+  .edge { stroke: var(--ink-faint); stroke-width: 1.6; fill: none; }
+  .edge-async { stroke-dasharray: 5 4; }
+  .arrowhead { fill: var(--ink-faint); }
+  .node-customer { fill: var(--customer-soft); stroke: var(--customer); stroke-width:1.5; }
+  .node-admin { fill: var(--admin-soft); stroke: var(--admin); stroke-width:1.5; }
+  .node-system { fill: var(--system-soft); stroke: var(--system); stroke-width:1.5; }
+  .node-gold { fill: var(--gold-soft); stroke: var(--gold); stroke-width:1.5; }
+  .node-neutral { fill: var(--surface-2); stroke: var(--border-strong); stroke-width:1.4; }
+  .pill-success { fill: var(--success-soft); } .pill-success text { fill: var(--success); }
+  .pill-warning { fill: var(--warning-soft); } .pill-warning text { fill: var(--warning); }
+  .pill-danger { fill: var(--danger-soft); } .pill-danger text { fill: var(--danger); }
+  .pill text { font: 700 9.5px var(--font-mono); }
+  .lifeline { stroke: var(--border-strong); stroke-width:1.4; }
+
+  /* ---------- Callouts ---------- */
+  .callout {
+    border-left: 3px solid var(--gold);
+    background: var(--gold-soft); border-radius: 0 10px 10px 0;
+    padding: 12px 16px; font-size: 13.3px; color: var(--ink);
+    margin: 4px 0 20px;
+  }
+  .callout b { color: var(--gold); font-family: var(--font-display); }
+  .callout.warn { border-color: var(--danger); background: var(--danger-soft); }
+  .callout.warn b { color: var(--danger); }
+
+  /* ---------- Tables ---------- */
+  .table-wrap { overflow-x:auto; border:1px solid var(--border); border-radius: 12px; background:var(--surface); box-shadow: var(--shadow); }
+  table { width:100%; border-collapse: collapse; font-size: 13px; min-width: 640px; }
+  th, td { text-align:left; padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { font-family: var(--font-display); font-size: 11.5px; text-transform:uppercase; letter-spacing:.05em; color: var(--ink-faint); background: var(--surface-2); }
+  tr:last-child td { border-bottom:none; }
+  code { font-family: var(--font-mono); font-size: 12px; background: var(--surface-2); border:1px solid var(--border); padding: 1px 5px; border-radius:5px; color: var(--ink); }
+  .tag { display:inline-block; font-family:var(--font-mono); font-size:11px; font-weight:700; padding:2px 7px; border-radius:6px; }
+  .tag.customer{ background:var(--customer-soft); color:var(--customer); }
+  .tag.admin{ background:var(--admin-soft); color:var(--admin); }
+  .tag.system{ background:var(--system-soft); color:var(--system); }
+  .tag.gold{ background:var(--gold-soft); color:var(--gold); }
+
+  /* ---------- Diff tabs (before/after price comparison) ---------- */
+  .difftabs { border:1px solid var(--border); border-radius:14px; background:var(--surface); box-shadow:var(--shadow); overflow:hidden; margin-bottom:20px; }
+  .difftabs-radio { position:absolute; opacity:0; pointer-events:none; }
+  .difftabs-nav { display:flex; border-bottom:1px solid var(--border); background:var(--surface-2); }
+  .difftabs-label { flex:1; text-align:center; padding:13px 16px; font-family:var(--font-display); font-size:13px; font-weight:700; color:var(--ink-faint); cursor:pointer; user-select:none; border-bottom:2px solid transparent; transition:color .15s,border-color .15s; }
+  .difftabs-label:hover { color:var(--ink-soft); }
+  #tab-before:checked ~ .difftabs-nav label[for="tab-before"],
+  #tab-after:checked ~ .difftabs-nav label[for="tab-after"] { color:var(--ink); border-bottom-color:var(--gold); }
+  .difftabs-panel { display:none; padding:22px 26px; }
+  #tab-before:checked ~ .panel-before { display:block; }
+  #tab-after:checked ~ .panel-after { display:block; }
+  .diff-row { display:flex; justify-content:space-between; align-items:baseline; padding:9px 0; border-bottom:1px dashed var(--border); font-size:13.5px; }
+  .diff-row:last-child { border-bottom:none; }
+  .diff-row .diff-label { color:var(--ink-soft); }
+  .diff-row .diff-value { font-family:var(--font-mono); font-weight:700; }
+  .diff-old .diff-value { color:var(--danger); text-decoration:line-through; text-decoration-color:var(--danger); }
+  .diff-new .diff-value { color:var(--success); }
+  .diff-total { margin-top:10px; padding-top:14px; border-top:1px solid var(--border-strong); display:flex; justify-content:space-between; align-items:baseline; }
+  .diff-total .diff-label { font-family:var(--font-display); font-weight:700; font-size:14px; }
+  .diff-total .diff-value { font-family:var(--font-mono); font-size:20px; font-weight:700; }
+  .diff-badge { display:inline-block; margin-left:10px; font-family:var(--font-mono); font-size:11.5px; font-weight:700; padding:3px 9px; border-radius:20px; background:var(--success-soft); color:var(--success); vertical-align:middle; }
+
+  footer { color: var(--ink-faint); font-size: 12px; padding-top:24px; border-top:1px solid var(--border); }
+
+  @media (max-width: 880px) {
+    .shell { flex-direction: column; }
+    nav.toc { position: static; width:100%; height:auto; border-right:none; border-bottom:1px solid var(--border); padding: 18px 20px; }
+    main { padding: 28px 20px 80px; }
+  }
+</style>
+
+<div class="shell">
+  <nav class="toc">
+    <div class="toc-brand">CRYO<span>·</span>BACKEND</div>
+    <div class="toc-sub">Lifecycle reference — Aug 2026</div>
+    <a href="#big-picture"><span class="num">00</span>Big Picture</a>
+    <a href="#registration"><span class="num">01</span>Registration &amp; Approval</a>
+    <a href="#user-types"><span class="num">02</span>User Types &amp; Access</a>
+    <a href="#subscription"><span class="num">03</span>Subscription &amp; Deposit</a>
+    <a href="#orders"><span class="num">04</span>Placing an Order</a>
+    <a href="#mamopay"><span class="num">05</span>MamoPay Payments</a>
+    <a href="#cron"><span class="num">06</span>Cron &amp; Renewal</a>
+    <a href="#price-change"><span class="num">07</span>Subscription Price Update</a>
+    <a href="#price-update"><span class="num">08</span>Price Update &amp; Regenerate</a>
+    <a href="#time"><span class="num">09</span>Time &amp; Deadlines</a>
+    <a href="#notifications"><span class="num">10</span>Notifications</a>
+  </nav>
+
+  <main>
+    <div class="masthead">
+      <div class="eyebrow">Workflow Reference</div>
+      <h1>From sign-up to delivery: how Cryo actually runs</h1>
+      <p>This maps the complete customer lifecycle as the backend implements it today — who creates an account, how a subscription gets approved and billed through MamoPay, how orders are priced against the subscription allowance, and which jobs run automatically every night. Every box below reflects real logic in the codebase, not an idealized version of it.</p>
+    </div>
+
+    <div class="legend">
+      <div class="legend-group"><span class="swatch customer"></span>Customer / Representative action</div>
+      <div class="legend-group"><span class="swatch admin"></span>Admin / Sales Team action</div>
+      <div class="legend-group"><span class="swatch system"></span>Automated (queued job, scheduler)</div>
+      <div class="legend-group"><span class="swatch gold"></span>MamoPay (external payment provider)</div>
+      <div class="legend-group"><span class="line-sample"></span>Direct step</div>
+      <div class="legend-group"><span class="line-sample dashed"></span>Automatic / async trigger</div>
+    </div>
+
+    <!-- ================= 00 BIG PICTURE ================= -->
+    <section id="big-picture">
+      <span class="sec-num">00</span>
+      <h2>The full lifecycle at a glance</h2>
+      <p class="sec-intro">One account moves through four phases: it is created and approved, it gets an active subscription, it places orders against that subscription's allowance, and it renews — either automatically (cash/credit) or by MamoPay charging the customer's card again (payment‑link). Everything below drills into one of these phases.</p>
+      <figure>
+        <div class="diagram-scroll">
+<svg viewBox="0 0 1040 1420" role="img" aria-label="End to end lifecycle: admin creates customer, approval gate, subscription split by payment mode, order placement with pool engine, delivery, and renewal loop back into active subscription.">
+  <defs>
+    <marker id="a0" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path class="arrowhead" d="M0,0 L10,5 L0,10 z"/>
+    </marker>
+  </defs>
+
+  <rect x="30" y="10" width="380" height="70" rx="12" class="node-admin"/>
+  <text x="220" y="36" text-anchor="middle" class="n-title">Admin / Sales Team creates Customer</text>
+  <text x="220" y="53" text-anchor="middle" class="n-sub">sets mode_of_payment, discount, uploads KYC docs</text>
+  <text x="220" y="68" text-anchor="middle" class="n-code">users.role = customer</text>
+
+  <line x1="220" y1="80" x2="220" y2="112" class="edge" marker-end="url(#a0)"/>
+
+  <rect x="30" y="112" width="380" height="70" rx="12" class="node-system"/>
+  <text x="220" y="138" text-anchor="middle" class="n-title">Approval gate</text>
+  <text x="220" y="155" text-anchor="middle" class="n-sub">auto-approved if discount ≤ limit, else an admin approves later</text>
+  <text x="220" y="170" text-anchor="middle" class="n-code">status: 0 inactive → 1 active</text>
+
+  <line x1="220" y1="182" x2="220" y2="214" class="edge" marker-end="url(#a0)"/>
+
+  <rect x="30" y="214" width="380" height="56" rx="12" class="node-system"/>
+  <text x="220" y="237" text-anchor="middle" class="n-title">Credentials emailed + WhatsApp sent</text>
+  <text x="220" y="253" text-anchor="middle" class="n-code">CustomerRegistrationMail · registration_mail_sent=1</text>
+
+  <line x1="220" y1="270" x2="220" y2="300" class="edge"/>
+  <line x1="220" y1="300" x2="130" y2="300" class="edge"/>
+  <line x1="220" y1="300" x2="310" y2="300" class="edge"/>
+  <line x1="130" y1="300" x2="130" y2="330" class="edge" marker-end="url(#a0)"/>
+  <line x1="310" y1="300" x2="310" y2="330" class="edge" marker-end="url(#a0)"/>
+
+  <text x="130" y="318" text-anchor="middle" class="n-sub" font-style="italic">mode = cash / credit</text>
+  <text x="310" y="318" text-anchor="middle" class="n-sub" font-style="italic">mode = payment_link</text>
+
+  <rect x="30" y="330" width="200" height="64" rx="12" class="node-admin"/>
+  <text x="130" y="354" text-anchor="middle" class="n-title">First subscription</text>
+  <text x="130" y="369" text-anchor="middle" class="n-sub">created immediately, paid</text>
+  <text x="130" y="384" text-anchor="middle" class="n-code">payment_status=1</text>
+
+  <rect x="240" y="330" width="200" height="64" rx="12" class="node-gold"/>
+  <text x="340" y="354" text-anchor="middle" class="n-title">Recurring MamoPay link</text>
+  <text x="340" y="369" text-anchor="middle" class="n-sub">generated at signup</text>
+  <text x="340" y="384" text-anchor="middle" class="n-code">mamo_subscription_links</text>
+
+  <line x1="340" y1="394" x2="340" y2="420" class="edge" marker-end="url(#a0)"/>
+  <rect x="240" y="420" width="200" height="54" rx="12" class="node-gold"/>
+  <text x="340" y="442" text-anchor="middle" class="n-title">Customer pays via MamoPay</text>
+  <text x="340" y="458" text-anchor="middle" class="n-code">webhook/subscription/callback</text>
+
+  <line x1="130" y1="394" x2="130" y2="510" class="edge"/>
+  <line x1="340" y1="474" x2="340" y2="510" class="edge"/>
+  <line x1="130" y1="510" x2="340" y2="510" class="edge" marker-end="url(#a0)"/>
+  <line x1="130" y1="510" x2="220" y2="510" class="edge"/>
+  <line x1="220" y1="510" x2="220" y2="540" class="edge" marker-end="url(#a0)"/>
+
+  <rect x="30" y="540" width="380" height="70" rx="12" class="node-system"/>
+  <text x="220" y="564" text-anchor="middle" class="n-title">Active subscription</text>
+  <text x="220" y="580" text-anchor="middle" class="n-sub">payment_status=1, subscription_status=1, is_cancelled=0</text>
+  <text x="220" y="595" text-anchor="middle" class="n-code">+ caution deposit required (payment_link only)</text>
+
+  <line x1="220" y1="610" x2="220" y2="642" class="edge" marker-end="url(#a0)"/>
+
+  <rect x="30" y="642" width="380" height="68" rx="12" class="node-customer"/>
+  <text x="220" y="666" text-anchor="middle" class="n-title">Customer places an order</text>
+  <text x="220" y="682" text-anchor="middle" class="n-sub">pool engine splits free (plan) vs chargeable qty</text>
+  <text x="220" y="697" text-anchor="middle" class="n-code">+ 5% VAT on chargeable total</text>
+
+  <line x1="220" y1="710" x2="220" y2="742" class="edge" marker-end="url(#a0)"/>
+
+  <rect x="30" y="742" width="380" height="56" rx="12" class="node-gold"/>
+  <text x="220" y="765" text-anchor="middle" class="n-title">Owed amount, payment_link mode?</text>
+  <text x="220" y="781" text-anchor="middle" class="n-sub">yes → one-off MamoPay order link created &amp; paid</text>
+
+  <line x1="220" y1="798" x2="220" y2="828" class="edge" marker-end="url(#a0)"/>
+
+  <rect x="30" y="828" width="380" height="56" rx="12" class="node-customer"/>
+  <text x="220" y="851" text-anchor="middle" class="n-title">Customer approves the order</text>
+  <text x="220" y="867" text-anchor="middle" class="n-code">approved_at set · invoice PDF generated</text>
+
+  <line x1="220" y1="884" x2="220" y2="914" class="edge" marker-end="url(#a0)"/>
+
+  <rect x="30" y="914" width="380" height="66" rx="12" class="node-admin"/>
+  <text x="220" y="938" text-anchor="middle" class="n-title">Processing → Shipped → Delivered</text>
+  <text x="220" y="954" text-anchor="middle" class="n-sub">cancellable within 10h of approval</text>
+  <text x="220" y="968" text-anchor="middle" class="n-code">OrderStatus history log</text>
+
+  <!-- Renewal loop -->
+  <path class="edge edge-async" marker-end="url(#a0)"
+    d="M 410 950 C 700 950, 900 780, 900 575 C 900 480, 700 420, 460 415"/>
+  <rect x="620" y="1000" width="330" height="90" rx="12" class="node-system"/>
+  <text x="785" y="1024" text-anchor="middle" class="n-title">Renewal, every night</text>
+  <text x="785" y="1042" text-anchor="middle" class="n-sub">cash/credit: cron renews at 01:00</text>
+  <text x="785" y="1058" text-anchor="middle" class="n-sub">payment_link: MamoPay auto-charges → webhook</text>
+  <text x="785" y="1075" text-anchor="middle" class="n-code">both feed back into "Active subscription"</text>
+  <path class="edge edge-async" d="M 785 1000 C 785 900, 700 800, 500 760" marker-end="url(#a0)"/>
+</svg>
+        </div>
+        <figcaption>Vertical spine = the happy path for one account. The two side-by-side boxes are the only real fork in the whole system: everything else is identical for cash/credit and payment‑link customers. The dashed loop at the bottom is the nightly renewal that restarts the cycle without anyone logging in.</figcaption>
+      </figure>
+    </section>
+
+    <!-- ================= 01 REGISTRATION ================= -->
+    <section id="registration">
+      <span class="sec-num">01</span>
+      <h2>Registration &amp; approval</h2>
+      <p class="sec-intro">There is no public sign-up page. Every account — customer, representative, or staff — is created for the person by someone else, and credentials are emailed to them. The only decision point is whether a new customer needs a human to sign off before they're allowed in.</p>
+
+      <figure>
+        <div class="diagram-scroll">
+<svg viewBox="0 0 1160 460" role="img" aria-label="Registration decision flow: admin creates customer, discount checked against auto-approval limit, either auto-activated or sent for manual admin approval, both paths converge on sending credentials.">
+  <defs>
+    <marker id="a1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path class="arrowhead" d="M0,0 L10,5 L0,10 z"/>
+    </marker>
+  </defs>
+
+  <rect x="20" y="170" width="200" height="72" rx="12" class="node-admin"/>
+  <text x="120" y="198" text-anchor="middle" class="n-title">Admin fills customer form</text>
+  <text x="120" y="214" text-anchor="middle" class="n-sub">name, KYC docs, discount %,</text>
+  <text x="120" y="228" text-anchor="middle" class="n-sub">mode_of_payment, plan</text>
+
+  <line x1="220" y1="206" x2="270" y2="206" class="edge" marker-end="url(#a1)"/>
+
+  <polygon points="270,150 390,206 270,262 150,206" class="node-neutral"/>
+  <text x="270" y="200" text-anchor="middle" class="n-sub" font-weight="700">discount ≤</text>
+  <text x="270" y="214" text-anchor="middle" class="n-code">auto_approval_limit ?</text>
+
+  <line x1="390" y1="206" x2="440" y2="206" class="edge"/>
+  <line x1="440" y1="206" x2="440" y2="80" class="edge"/>
+  <line x1="440" y1="80" x2="480" y2="80" class="edge" marker-end="url(#a1)"/>
+  <text x="415" y="150" class="n-sub" font-style="italic">yes</text>
+
+  <line x1="270" y1="262" x2="270" y2="360" class="edge"/>
+  <line x1="270" y1="360" x2="480" y2="360" class="edge" marker-end="url(#a1)"/>
+  <text x="278" y="300" class="n-sub" font-style="italic">no</text>
+
+  <rect x="480" y="44" width="230" height="72" rx="12" class="node-system"/>
+  <text x="595" y="70" text-anchor="middle" class="n-title">Auto-approved</text>
+  <text x="595" y="86" text-anchor="middle" class="n-code">status = ACTIVE (1)</text>
+  <text x="595" y="101" text-anchor="middle" class="n-code">discount_status = ACTIVE</text>
+
+  <rect x="480" y="324" width="230" height="72" rx="12" class="pill-warning node-neutral"/>
+  <text x="595" y="350" text-anchor="middle" class="n-title">Held for approval</text>
+  <text x="595" y="366" text-anchor="middle" class="n-code">status = INACTIVE (0)</text>
+  <text x="595" y="381" text-anchor="middle" class="n-code">discount_status = INACTIVE</text>
+
+  <line x1="710" y1="360" x2="770" y2="360" class="edge" marker-end="url(#a1)"/>
+  <rect x="770" y="324" width="250" height="72" rx="12" class="node-admin"/>
+  <text x="895" y="350" text-anchor="middle" class="n-title">Admin reviews &amp; decides</text>
+  <text x="895" y="366" text-anchor="middle" class="n-code">update-customer-status /</text>
+  <text x="895" y="380" text-anchor="middle" class="n-code">update-discount-status</text>
+
+  <line x1="895" y1="324" x2="895" y2="290" class="edge"/>
+  <line x1="895" y1="290" x2="595" y2="290" class="edge"/>
+  <line x1="595" y1="290" x2="595" y2="116" class="edge" marker-end="url(#a1)"/>
+  <text x="700" y="283" class="n-sub" font-style="italic">approved</text>
+
+  <line x1="895" y1="396" x2="895" y2="430" class="edge" marker-end="url(#a1)"/>
+  <rect x="770" y="430" width="250" height="26" rx="8" class="pill-danger" />
+  <text x="895" y="447" text-anchor="middle">DECLINED — WhatsApp "account_inactive"</text>
+  <text x="705" y="420" class="n-sub" font-style="italic">declined</text>
+
+</svg>
+        </div>
+        <figcaption>The <code>discount</code> value is the only gate. Below the configured <code>auto_approval_limit</code>, a customer is active the moment the form is saved; above it, someone with admin access has to click approve or decline first. Declining sends a WhatsApp <code>account_inactive</code> notice and — if the mode was <code>payment_link</code> — removes the MamoPay link that had already been generated.</figcaption>
+      </figure>
+
+      <div class="callout">
+        <b>Same pattern, two more account types.</b> A <span class="tag customer">Customer</span> can add up to 5 <code>customer_representative</code> sub-accounts (no approval step — active immediately, inherits the parent's payment mode); an <span class="tag admin">Admin</span> can create <code>sales_team</code> staff the same way. Both simply get credentials emailed straight away — there's no discount gate outside the main customer flow.
+      </div>
+    </section>
+
+    <!-- ================= 02 USER TYPES ================= -->
+    <section id="user-types">
+      <span class="sec-num">02</span>
+      <h2>User types &amp; access</h2>
+      <p class="sec-intro">Accounts live in two separate tables with two separate login guards. Everything under a customer's umbrella — the customer and its representatives — is gated by one middleware that checks whether the parent account is active.</p>
+
+      <figure>
+        <div class="diagram-scroll">
+<svg viewBox="0 0 1000 300" role="img" aria-label="Two tables: users table holding customer and customer representative roles gated by an inactive-check middleware, and admins table holding admin and sales team roles with no such gate.">
+  <defs>
+    <marker id="a2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path class="arrowhead" d="M0,0 L10,5 L0,10 z"/>
+    </marker>
+  </defs>
+
+  <rect x="30" y="20" width="420" height="180" rx="14" class="node-neutral"/>
+  <text x="50" y="44" class="lane-label">users table · auth:customer</text>
+
+  <rect x="55" y="66" width="170" height="60" rx="10" class="node-customer"/>
+  <text x="140" y="90" text-anchor="middle" class="n-title">customer</text>
+  <text x="140" y="106" text-anchor="middle" class="n-sub">full self-service account</text>
+
+  <rect x="255" y="66" width="170" height="60" rx="10" class="node-customer"/>
+  <text x="340" y="86" text-anchor="middle" class="n-title">customer_representative</text>
+  <text x="340" y="102" text-anchor="middle" class="n-sub">max 5 per customer, orders</text>
+  <text x="340" y="115" text-anchor="middle" class="n-sub">only, inherits parent's plan</text>
+
+  <line x1="140" y1="126" x2="140" y2="150" class="edge"/>
+  <line x1="340" y1="126" x2="340" y2="150" class="edge"/>
+  <line x1="140" y1="150" x2="340" y2="150" class="edge"/>
+  <line x1="240" y1="150" x2="240" y2="170" class="edge" marker-end="url(#a2)"/>
+  <rect x="70" y="170" width="340" height="24" rx="8" class="pill-warning"/>
+  <text x="240" y="186" text-anchor="middle">gated by CustomerInactiveOrNotMiddleware</text>
+
+  <rect x="530" y="20" width="420" height="180" rx="14" class="node-neutral"/>
+  <text x="550" y="44" class="lane-label">admins table · auth:admin</text>
+
+  <rect x="555" y="66" width="170" height="60" rx="10" class="node-admin"/>
+  <text x="640" y="90" text-anchor="middle" class="n-title">admin</text>
+  <text x="640" y="106" text-anchor="middle" class="n-sub">sees every customer / order</text>
+
+  <rect x="755" y="66" width="170" height="60" rx="10" class="node-admin"/>
+  <text x="840" y="86" text-anchor="middle" class="n-title">sales_team</text>
+  <text x="840" y="102" text-anchor="middle" class="n-sub">scoped to customers where</text>
+  <text x="840" y="115" text-anchor="middle" class="n-sub">users.admin_id = their id</text>
+
+  <text x="740" y="180" text-anchor="middle" class="n-sub" font-style="italic">no activity gate on staff accounts</text>
+</svg>
+        </div>
+        <figcaption>A representative's own <code>status</code> field isn't checked — what matters is the parent customer's. Deactivate the customer and every representative under it loses access in the same request cycle.</figcaption>
+      </figure>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Role</th><th>Created by</th><th>Approval step</th><th>What's different</th></tr></thead>
+          <tbody>
+            <tr><td><span class="tag customer">customer</span></td><td>Admin or Sales Team</td><td>Yes, if discount &gt; auto-approval limit</td><td>Owns subscription, payment mode, cards, deposit, and up to 5 representatives.</td></tr>
+            <tr><td><span class="tag customer">customer_representative</span></td><td>The customer</td><td>None — active immediately</td><td>Can place orders on the customer's behalf; order list shows only what they personally created; ordering by a rep emails the parent customer.</td></tr>
+            <tr><td><span class="tag admin">sales_team</span></td><td>Admin</td><td>None</td><td>Customer/order views scoped to only the customers they created; customers they onboard with a high discount need head-office approval and trigger an outcome email back to the rep.</td></tr>
+            <tr><td><span class="tag admin">admin</span></td><td>Another admin</td><td>None</td><td>Unrestricted visibility; approves discounts, manages subscription plans/catalog, can manually mark an order as paid.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ================= 03 SUBSCRIPTION ================= -->
+    <section id="subscription">
+      <span class="sec-num">03</span>
+      <h2>Subscription &amp; caution deposit</h2>
+      <p class="sec-intro">A subscription is a one-month period record (<code>UserSubscription</code>), not a standing flag. Whether that period is "active" is computed on demand from four conditions, and the way a period gets created is completely different depending on how the customer pays.</p>
+
+      <figure>
+        <div class="diagram-scroll">
+<svg viewBox="0 0 1080 560" role="img" aria-label="Two subscription creation paths, cash or credit versus payment link through MamoPay webhook, converging on the hasActiveSubscription gate that also requires a paid caution deposit for payment link customers.">
+  <defs>
+    <marker id="a3" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path class="arrowhead" d="M0,0 L10,5 L0,10 z"/>
+    </marker>
+  </defs>
+
+  <text x="20" y="26" class="lane-label">cash / credit</text>
+  <rect x="20" y="40" width="290" height="66" rx="12" class="node-admin"/>
+  <text x="165" y="64" text-anchor="middle" class="n-title">General\SubscriptionService::create()</text>
+  <text x="165" y="80" text-anchor="middle" class="n-sub">runs at approval, or nightly by cron</text>
+  <text x="165" y="94" text-anchor="middle" class="n-code">start_date anchored to subscribed_at day</text>
+
+  <line x1="165" y1="106" x2="165" y2="136" class="edge" marker-end="url(#a3)"/>
+  <rect x="20" y="136" width="290" height="66" rx="12" class="node-admin"/>
+  <text x="165" y="160" text-anchor="middle" class="n-title">Marked paid immediately</text>
+  <text x="165" y="176" text-anchor="middle" class="n-code">payment_status=1, subscription_status=1</text>
+  <text x="165" y="191" text-anchor="middle" class="n-code">end_date = start_date + 1 month</text>
+
+  <line x1="165" y1="202" x2="165" y2="232" class="edge" marker-end="url(#a3)"/>
+  <rect x="20" y="232" width="290" height="52" rx="12" class="node-admin"/>
+  <text x="165" y="253" text-anchor="middle" class="n-title">Caution deposit auto-marked paid</text>
+  <text x="165" y="269" text-anchor="middle" class="n-code">CautionDeposit.status = 1</text>
+
+  <text x="420" y="26" class="lane-label">payment link (MamoPay)</text>
+  <rect x="420" y="40" width="300" height="52" rx="12" class="node-gold"/>
+  <text x="570" y="61" text-anchor="middle" class="n-title">Customer taps Subscribe</text>
+  <text x="570" y="76" text-anchor="middle" class="n-sub">returns the link generated at signup</text>
+
+  <line x1="570" y1="92" x2="570" y2="120" class="edge" marker-end="url(#a3)"/>
+  <rect x="420" y="120" width="300" height="46" rx="12" class="node-gold"/>
+  <text x="570" y="140" text-anchor="middle" class="n-title">Customer pays on MamoPay</text>
+  <text x="570" y="154" text-anchor="middle" class="n-code">recurring charge, same day each month</text>
+
+  <line x1="570" y1="166" x2="570" y2="194" class="edge edge-async" marker-end="url(#a3)"/>
+  <rect x="420" y="194" width="300" height="90" rx="12" class="node-system"/>
+  <text x="570" y="216" text-anchor="middle" class="n-title">Webhook: /webhook/subscription/callback</text>
+  <text x="570" y="232" text-anchor="middle" class="n-sub">idempotent on transaction_id, looks up</text>
+  <text x="570" y="245" text-anchor="middle" class="n-sub">MamoSubscriptionLink → matching user</text>
+  <text x="570" y="261" text-anchor="middle" class="n-code">status: 1 if "captured", else 0</text>
+  <text x="570" y="275" text-anchor="middle" class="n-code">start_date = today (not projected forward)</text>
+
+  <rect x="760" y="194" width="290" height="90" rx="12" class="pill-danger node-neutral"/>
+  <text x="905" y="216" text-anchor="middle" class="n-title">If not "captured"</text>
+  <text x="905" y="232" text-anchor="middle" class="n-sub">SubscriptionFailedEmail sent</text>
+  <text x="905" y="246" text-anchor="middle" class="n-sub">WhatsApp subscription_payment_failed</text>
+  <text x="905" y="262" text-anchor="middle" class="n-sub">invalid/expired card → card deactivated</text>
+  <line x1="760" y1="239" x2="722" y2="239" class="edge" marker-end="url(#a3)"/>
+
+  <line x1="570" y1="284" x2="570" y2="312" class="edge" marker-end="url(#a3)"/>
+  <rect x="420" y="312" width="300" height="52" rx="12" class="node-gold"/>
+  <text x="570" y="333" text-anchor="middle" class="n-title">Caution deposit created PENDING</text>
+  <text x="570" y="348" text-anchor="middle" class="n-sub">must be paid separately before ordering</text>
+
+  <line x1="165" y1="284" x2="165" y2="420" class="edge"/>
+  <line x1="570" y1="364" x2="570" y2="420" class="edge"/>
+  <line x1="165" y1="420" x2="570" y2="420" class="edge" marker-end="url(#a3)"/>
+  <line x1="165" y1="420" x2="360" y2="420" class="edge"/>
+  <line x1="360" y1="420" x2="360" y2="450" class="edge" marker-end="url(#a3)"/>
+
+  <rect x="140" y="450" width="440" height="90" rx="14" class="node-system"/>
+  <text x="360" y="474" text-anchor="middle" class="n-title">User::hasActiveSubscription()</text>
+  <text x="360" y="492" text-anchor="middle" class="n-code">start_date ≤ now ≤ end_date</text>
+  <text x="360" y="507" text-anchor="middle" class="n-code">AND payment_status=1 AND subscription_status=1</text>
+  <text x="360" y="522" text-anchor="middle" class="n-code">AND is_cancelled=0</text>
+
+  <rect x="640" y="450" width="410" height="90" rx="14" class="node-customer"/>
+  <text x="845" y="474" text-anchor="middle" class="n-title">Unsubscribe (customer-initiated)</text>
+  <text x="845" y="492" text-anchor="middle" class="n-code">is_cancelled=1 on the period</text>
+  <text x="845" y="507" text-anchor="middle" class="n-code">caution deposit cancelled=1</text>
+  <text x="845" y="524" text-anchor="middle" class="n-sub" font-style="italic">MamoPay side is not actually called to stop billing</text>
+</svg>
+        </div>
+        <figcaption>Note the asymmetry: cash/credit periods are trusted and marked paid on creation; payment-link periods only exist once MamoPay's webhook confirms money moved. The webhook is the source of truth for recurring billing — return-URL screens only double-check a single transaction, they don't create the period.</figcaption>
+      </figure>
+
+      <div class="callout warn">
+        <b>Known gap worth flagging to engineering.</b> When a customer unsubscribes, the code that would tell MamoPay to stop the recurring charge is written but commented out — cancellation today only stops Cryo's own side from recognizing the subscription as active.
+      </div>
+    </section>
+
+    <!-- ================= 04 ORDERS ================= -->
+    <section id="orders">
+      <span class="sec-num">04</span>
+      <h2>Placing an order</h2>
+      <p class="sec-intro">Every order is priced against the customer's active subscription pool before anything is charged. Items already covered by the plan's monthly allowance are free; anything beyond it — or not in a pool at all — is billed, plus 5% VAT.</p>
+
+      <figure>
+        <div class="diagram-scroll">
+<svg viewBox="0 0 1080 260" role="img" aria-label="Pool allowance gauge: already consumed this period, plus this orders plan included free quantity, plus chargeable overage, feeding into VAT calculation and payment branch.">
+  <defs>
+    <marker id="a4" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path class="arrowhead" d="M0,0 L10,5 L0,10 z"/>
+    </marker>
+  </defs>
+  <text x="20" y="24" class="n-title">Subscription pool this month, e.g. 20 cylinders included</text>
+  <rect x="20" y="36" width="1030" height="34" rx="8" class="node-neutral"/>
+  <rect x="20" y="36" width="360" height="34" class="node-admin" style="stroke:none"/>
+  <rect x="380" y="36" width="260" height="34" class="node-customer" style="stroke:none"/>
+  <rect x="640" y="36" width="410" height="34" class="node-gold" style="stroke:none"/>
+  <rect x="20" y="36" width="1030" height="34" rx="8" fill="none" class="node-neutral"/>
+  <text x="200" y="58" text-anchor="middle" class="n-sub" font-weight="700">already used this period</text>
+  <text x="510" y="58" text-anchor="middle" class="n-sub" font-weight="700">this order — plan-included (free)</text>
+  <text x="845" y="58" text-anchor="middle" class="n-sub" font-weight="700">this order — chargeable overage</text>
+
+  <line x1="640" y1="80" x2="640" y2="106" class="edge" marker-end="url(#a4)"/>
+  <rect x="480" y="106" width="320" height="52" rx="12" class="node-neutral"/>
+  <text x="640" y="127" text-anchor="middle" class="n-title">Chargeable qty × unit price + 5% VAT</text>
+  <text x="640" y="143" text-anchor="middle" class="n-code">Order.price_after_vat</text>
+
+  <line x1="640" y1="158" x2="640" y2="186" class="edge"/>
+  <line x1="640" y1="186" x2="380" y2="186" class="edge"/>
+  <line x1="640" y1="186" x2="900" y2="186" class="edge"/>
+  <line x1="380" y1="186" x2="380" y2="210" class="edge" marker-end="url(#a4)"/>
+  <line x1="900" y1="186" x2="900" y2="210" class="edge" marker-end="url(#a4)"/>
+
+  <rect x="220" y="210" width="320" height="44" rx="10" class="node-admin"/>
+  <text x="380" y="228" text-anchor="middle" class="n-title" font-size="11.5">Amount due = 0, or cash/credit</text>
+  <text x="380" y="243" text-anchor="middle" class="n-sub">order goes straight to approval</text>
+
+  <rect x="740" y="210" width="320" height="44" rx="10" class="node-gold"/>
+  <text x="900" y="228" text-anchor="middle" class="n-title" font-size="11.5">Amount due &amp; payment_link mode</text>
+  <text x="900" y="243" text-anchor="middle" class="n-sub">one-off MamoPay link created for this order</text>
+</svg>
+        </div>
+        <figcaption>Consumption is recalculated from every non-cancelled, non-rejected order already placed this period — there's no running counter, the totals are summed fresh each time an order is priced.</figcaption>
+      </figure>
+
+      <figure>
+        <div class="diagram-scroll">
+<svg viewBox="0 0 1080 200" role="img" aria-label="Order status progression from pending through processing shipped and delivered, requiring approval first, cancellable within 10 hours of approval by customer or admin.">
+  <defs>
+    <marker id="a4b" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path class="arrowhead" d="M0,0 L10,5 L0,10 z"/>
+    </marker>
+  </defs>
+  <rect x="20" y="60" width="170" height="56" rx="10" class="node-customer"/>
+  <text x="105" y="83" text-anchor="middle" class="n-title">PENDING</text>
+  <text x="105" y="98" text-anchor="middle" class="n-sub">order created</text>
+
+  <line x1="190" y1="88" x2="230" y2="88" class="edge" marker-end="url(#a4b)"/>
+  <rect x="230" y="60" width="190" height="56" rx="10" class="node-customer"/>
+  <text x="325" y="83" text-anchor="middle" class="n-title">Approved</text>
+  <text x="325" y="98" text-anchor="middle" class="n-sub">approved_at + approved_by set</text>
+
+  <line x1="420" y1="88" x2="460" y2="88" class="edge" marker-end="url(#a4b)"/>
+  <rect x="460" y="60" width="170" height="56" rx="10" class="node-admin"/>
+  <text x="545" y="83" text-anchor="middle" class="n-title">PROCESSING</text>
+
+  <line x1="630" y1="88" x2="670" y2="88" class="edge" marker-end="url(#a4b)"/>
+  <rect x="670" y="60" width="150" height="56" rx="10" class="node-admin"/>
+  <text x="745" y="83" text-anchor="middle" class="n-title">SHIPPED</text>
+
+  <line x1="820" y1="88" x2="860" y2="88" class="edge" marker-end="url(#a4b)"/>
+  <rect x="860" y="60" width="200" height="56" rx="10" class="node-admin"/>
+  <text x="960" y="83" text-anchor="middle" class="n-title">DELIVERED</text>
+
+  <line x1="325" y1="116" x2="325" y2="150" class="edge" marker-end="url(#a4b)"/>
+  <rect x="150" y="150" width="350" height="40" rx="10" class="pill-danger node-neutral"/>
+  <text x="325" y="174" text-anchor="middle" class="n-sub">CANCELED — only within 10h of approved_at,</text>
+  <text x="325" y="187" text-anchor="middle" class="n-sub">by customer or admin</text>
+</svg>
+        </div>
+        <figcaption>Cancellation is only possible after approval and only inside a fixed 10-hour window; either the customer or an admin can trigger it, and each cancellation records who did it — which also changes what shows up in the admin's order list.</figcaption>
+      </figure>
+    </section>
+
+    <!-- ================= 05 MAMOPAY ================= -->
+    <section id="mamopay">
+      <span class="sec-num">05</span>
+      <h2>MamoPay payments</h2>
+      <p class="sec-intro">MamoPay is used four ways: one-off links (orders, deposits), a recurring link (subscriptions), direct charges against a saved card, and a server-to-server webhook that is the only fully trusted source for recurring billing outcomes.</p>
+
+      <figure>
+        <div class="diagram-scroll">
+<svg viewBox="0 0 1080 640" role="img" aria-label="Sequence diagram across three lifelines: customer, cryo backend, and mamopay, showing link creation, payment, return url verification, saved card charge, and the asynchronous webhook confirming recurring billing.">
+  <defs>
+    <marker id="a5" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path class="arrowhead" d="M0,0 L10,5 L0,10 z"/>
+    </marker>
+  </defs>
+
+  <text x="130" y="24" text-anchor="middle" class="lane-label">Customer</text>
+  <text x="540" y="24" text-anchor="middle" class="lane-label">Cryo Backend</text>
+  <text x="950" y="24" text-anchor="middle" class="lane-label">MamoPay</text>
+  <line x1="130" y1="36" x2="130" y2="610" class="lifeline"/>
+  <line x1="540" y1="36" x2="540" y2="610" class="lifeline"/>
+  <line x1="950" y1="36" x2="950" y2="610" class="lifeline"/>
+
+  <line x1="540" y1="60" x2="950" y2="60" class="edge" marker-end="url(#a5)"/>
+  <text x="745" y="53" text-anchor="middle" class="n-code">POST /links  (order, deposit, or recurring subscription)</text>
+
+  <line x1="950" y1="90" x2="540" y2="90" class="edge" marker-end="url(#a5)"/>
+  <text x="745" y="83" text-anchor="middle" class="n-code">payment_link URL</text>
+
+  <line x1="540" y1="118" x2="130" y2="118" class="edge" marker-end="url(#a5)"/>
+  <text x="335" y="111" text-anchor="middle" class="n-code">link shown to customer</text>
+
+  <line x1="130" y1="148" x2="950" y2="148" class="edge" marker-end="url(#a5)"/>
+  <text x="540" y="141" text-anchor="middle" class="n-code">customer pays on MamoPay's page</text>
+
+  <rect x="60" y="170" width="960" height="44" rx="10" class="node-neutral"/>
+  <text x="540" y="196" text-anchor="middle" class="n-sub">two independent confirmations happen from here — neither trusts the redirect alone</text>
+
+  <text x="130" y="240" text-anchor="middle" class="lane-label" font-size="10">path A · return URL</text>
+  <line x1="950" y1="252" x2="130" y2="252" class="edge" marker-end="url(#a5)"/>
+  <text x="540" y="245" text-anchor="middle" class="n-code">redirect to /payment/success?id=...</text>
+
+  <line x1="130" y1="252" x2="130" y2="278" class="edge"/>
+  <line x1="130" y1="278" x2="540" y2="278" class="edge" marker-end="url(#a5)"/>
+  <text x="335" y="271" text-anchor="middle" class="n-code">frontend calls success endpoint</text>
+
+  <line x1="540" y1="304" x2="950" y2="304" class="edge" marker-end="url(#a5)"/>
+  <text x="745" y="297" text-anchor="middle" class="n-code">GET /charges/{id} — re-verify, don't trust params</text>
+
+  <line x1="950" y1="330" x2="540" y2="330" class="edge" marker-end="url(#a5)"/>
+  <text x="745" y="323" text-anchor="middle" class="n-code">status: captured / failed</text>
+
+  <rect x="360" y="344" width="360" height="30" rx="8" class="node-customer"/>
+  <text x="540" y="364" text-anchor="middle" class="n-sub">updates Order / OrderPayment / Invoice, saves card</text>
+
+  <text x="950" y="410" text-anchor="middle" class="lane-label" font-size="10">path B · webhook (recurring only)</text>
+  <line x1="950" y1="422" x2="540" y2="422" class="edge edge-async" marker-end="url(#a5)"/>
+  <text x="745" y="415" text-anchor="middle" class="n-code">POST /webhook/subscription/callback</text>
+
+  <rect x="360" y="436" width="360" height="46" rx="10" class="node-system"/>
+  <text x="540" y="456" text-anchor="middle" class="n-sub">idempotent on transaction_id, then creates</text>
+  <text x="540" y="470" text-anchor="middle" class="n-sub">UserSubscription + SubscriptionPayment</text>
+
+  <text x="130" y="524" text-anchor="middle" class="lane-label" font-size="10">saved-card repeat charge</text>
+  <line x1="130" y1="536" x2="540" y2="536" class="edge" marker-end="url(#a5)"/>
+  <text x="335" y="529" text-anchor="middle" class="n-code">pay with saved card (1-click)</text>
+  <line x1="540" y1="562" x2="950" y2="562" class="edge" marker-end="url(#a5)"/>
+  <text x="745" y="555" text-anchor="middle" class="n-code">POST /charges  { card_id, amount }</text>
+  <line x1="950" y1="588" x2="540" y2="588" class="edge" marker-end="url(#a5)"/>
+  <text x="745" y="581" text-anchor="middle" class="n-code">invalid_card / expired_card → card deactivated</text>
+</svg>
+        </div>
+        <figcaption>The webhook is unauthenticated at the network layer (no HMAC signature check) but is protected by transaction-id idempotency and by looking up the subscription link before trusting anything in the payload. Card numbers are never stored — only an encrypted MamoPay <code>card_id</code>, a keyed hash for lookups, and the last 4 digits.</figcaption>
+      </figure>
+    </section>
+
+    <!-- ================= 06 CRON ================= -->
+    <section id="cron">
+      <span class="sec-num">06</span>
+      <h2>Cron jobs &amp; automatic renewal</h2>
+      <p class="sec-intro">Two jobs run every night. Payment-link customers don't need either of them for a normal renewal — MamoPay bills them on its own schedule and the webhook does the rest — these jobs exist for cash/credit renewal and for a one-time pricing migration.</p>
+
+      <div class="callout">
+        <b>Exact run time &amp; timezone.</b> Both jobs are registered with <code>Schedule::call(...)-&gt;dailyAt('01:00')</code> / <code>dailyAt('01:30')</code> in <code>routes/console.php</code> with no <code>-&gt;timezone()</code> override, and this environment's <code>.env</code> has no <code>APP_TIMEZONE</code> set either — so Laravel falls back to <code>config('app.timezone')</code>'s default, <b><code>UTC</code></b>. That means the jobs actually fire at <b>01:00 UTC</b> and <b>01:30 UTC</b>, which is <b>05:00</b> and <b>05:30 Gulf Standard Time (UTC+4)</b>. If the production server's <code>.env</code> sets <code>APP_TIMEZONE</code> to something else, the wall-clock time shifts accordingly — worth confirming directly on the production <code>.env</code> before relying on this for support timing.
+      </div>
+
+      <figure>
+        <div class="diagram-scroll">
+<svg viewBox="0 0 1080 210" role="img" aria-label="24 hour timeline showing subscription renew job at 01:00 and flag mamo pay regenerate job at 01:30, with a note on the manual one-off price update command.">
+  <defs>
+    <marker id="a6" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path class="arrowhead" d="M0,0 L10,5 L0,10 z"/>
+    </marker>
+  </defs>
+  <line x1="40" y1="60" x2="1040" y2="60" class="lifeline"/>
+  <line x1="40" y1="52" x2="40" y2="68" class="lifeline"/>
+  <text x="40" y="40" text-anchor="middle" class="n-code">00:00</text>
+  <line x1="1040" y1="52" x2="1040" y2="68" class="lifeline"/>
+  <text x="1040" y="40" text-anchor="middle" class="n-code">24:00</text>
+
+  <line x1="82" y1="52" x2="82" y2="68" class="edge"/>
+  <line x1="82" y1="68" x2="82" y2="100" class="edge" marker-end="url(#a6)"/>
+  <rect x="20" y="100" width="290" height="72" rx="12" class="node-system"/>
+  <text x="165" y="122" text-anchor="middle" class="n-title">01:00 UTC — app:subscription-renew</text>
+  <text x="165" y="138" text-anchor="middle" class="n-sub">cash/credit customers whose billing</text>
+  <text x="165" y="151" text-anchor="middle" class="n-sub">day-of-month is today get a new period</text>
+  <text x="165" y="165" text-anchor="middle" class="n-code">05:00 GST · payment_status=0 (needs manual settle)</text>
+
+  <line x1="118" y1="52" x2="118" y2="68" class="edge"/>
+  <line x1="118" y1="68" x2="360" y2="68" class="edge"/>
+  <line x1="360" y1="68" x2="360" y2="100" class="edge" marker-end="url(#a6)"/>
+  <rect x="330" y="100" width="300" height="72" rx="12" class="node-system"/>
+  <text x="480" y="122" text-anchor="middle" class="n-title">01:30 UTC — app:flag-mamo-pay-regenerate</text>
+  <text x="480" y="138" text-anchor="middle" class="n-sub">payment_link users whose old-price period</text>
+  <text x="480" y="151" text-anchor="middle" class="n-sub">just lapsed get flagged to re-subscribe</text>
+  <text x="480" y="165" text-anchor="middle" class="n-code">05:30 GST · active only 14 Jul – 15 Aug 2026</text>
+
+  <rect x="670" y="100" width="390" height="72" rx="12" class="node-admin"/>
+  <text x="865" y="122" text-anchor="middle" class="n-title">subscription:update-price (manual, not scheduled)</text>
+  <text x="865" y="138" text-anchor="middle" class="n-sub">admin runs by hand: bumps every plan +AED 50</text>
+  <text x="865" y="151" text-anchor="middle" class="n-sub">+5% GST, regenerates payment_link customers'</text>
+  <text x="865" y="165" text-anchor="middle" class="n-code">MamoPay links, sets the regenerate flag</text>
+</svg>
+        </div>
+        <figcaption>Nothing explicitly flips an expired subscription's status — "active" is always computed live from the date range, so an expired period simply stops satisfying <code>hasActiveSubscription()</code> rather than being marked expired somewhere.</figcaption>
+      </figure>
+    </section>
+
+    <!-- ================= 07 SUBSCRIPTION PRICE UPDATE ================= -->
+    <section id="price-change">
+      <span class="sec-num">07</span>
+      <h2>Subscription price update</h2>
+      <p class="sec-intro">When plan prices need to go up, an admin runs one command by hand — <code>php artisan subscription:update-price</code> (or with <code>--dry-run</code> first, to preview the exact numbers with no changes made). It does two things: raises every plan's price in the catalog, then rebuilds every payment-link customer's MamoPay link so their next charge reflects the new price.</p>
+
+      <div class="callout">
+        <b>The formula.</b> <code>New price = (Old price + AED 50) × 1.05</code> — a flat AED 50 is added to every plan first, and then 5% GST is charged on top of that new subtotal, not just on the AED 50. That's why the real increase is always a bit more than AED 50.
+      </div>
+
+      <div class="difftabs">
+        <input type="radio" name="pricetab" id="tab-before" class="difftabs-radio" checked>
+        <input type="radio" name="pricetab" id="tab-after" class="difftabs-radio">
+        <div class="difftabs-nav">
+          <label for="tab-before" class="difftabs-label">Before update</label>
+          <label for="tab-after" class="difftabs-label">After update</label>
+        </div>
+
+        <div class="difftabs-panel panel-before">
+          <div class="diff-row diff-old">
+            <span class="diff-label">Example plan — "Standard Monthly"</span>
+            <span class="diff-value">AED 200.00</span>
+          </div>
+          <div class="diff-row">
+            <span class="diff-label">Customer's MamoPay link charges</span>
+            <span class="diff-value">AED 200.00 / month</span>
+          </div>
+          <div class="diff-row">
+            <span class="diff-label">is_mamo_pay_regenerate flag</span>
+            <span class="diff-value">unchanged</span>
+          </div>
+        </div>
+
+        <div class="difftabs-panel panel-after">
+          <div class="diff-row">
+            <span class="diff-label">Old price</span>
+            <span class="diff-value">AED 200.00</span>
+          </div>
+          <div class="diff-row">
+            <span class="diff-label">+ AED 50 flat increase</span>
+            <span class="diff-value">AED 250.00</span>
+          </div>
+          <div class="diff-row">
+            <span class="diff-label">+ 5% GST on that subtotal</span>
+            <span class="diff-value">AED 12.50</span>
+          </div>
+          <div class="diff-total">
+            <span class="diff-label">New plan price</span>
+            <span class="diff-value" style="color:var(--success);">AED 262.50<span class="diff-badge">+ AED 62.50</span></span>
+          </div>
+          <div class="diff-row" style="margin-top:14px;">
+            <span class="diff-label">Customer's MamoPay link charges</span>
+            <span class="diff-value" style="color:var(--success);">AED 262.50 / month</span>
+          </div>
+          <div class="diff-row">
+            <span class="diff-label">Old link</span>
+            <span class="diff-value" style="color:var(--danger);">deleted</span>
+          </div>
+          <div class="diff-row">
+            <span class="diff-label">is_mamo_pay_regenerate flag</span>
+            <span class="diff-value">set to true, only if no active subscription</span>
+          </div>
+        </div>
+      </div>
+      <p class="sec-intro" style="margin-top:-8px;">So a AED 200 plan doesn't become AED 250 — it becomes <strong>AED 262.50</strong>, a real increase of <strong>AED 62.50</strong>, because GST compounds on top of the AED 50 bump. Every existing plan is shown with its old and new price in a table before the admin is asked to confirm, so nothing changes without a final "yes."</p>
+    </section>
+
+    <!-- ================= 08 PRICE UPDATE & REGENERATE ================= -->
+    <section id="price-update">
+      <span class="sec-num">08</span>
+      <h2>Price update → flag → re-subscribe</h2>
+      <p class="sec-intro">This is the aftermath of a subscription price change, and it only matters for <code>payment_link</code> customers — cash/credit customers just get billed the new price on their next cron renewal automatically. Two different triggers can mark a payment-link customer as <code>is_mamo_pay_regenerate</code>, but only one of them actually pushes out a new payable link on its own.</p>
+
+      <figure>
+        <div class="diagram-scroll">
+<svg viewBox="0 0 1080 740" role="img" aria-label="Two triggers, a manual price update command and a nightly regenerate flag cron, both mark a customer as needing regeneration; an admin must then reinitiate the MamoPay link, which flips a modal flag the frontend reads, the customer pays, and the webhook clears both flags once captured.">
+  <defs>
+    <marker id="a7" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path class="arrowhead" d="M0,0 L10,5 L0,10 z"/>
+    </marker>
+  </defs>
+
+  <rect x="20" y="20" width="490" height="100" rx="12" class="node-admin"/>
+  <text x="265" y="44" text-anchor="middle" class="n-title">subscription:update-price — run manually</text>
+  <text x="265" y="61" text-anchor="middle" class="n-sub">+AED 50, +5% GST across every subscription plan</text>
+  <text x="265" y="76" text-anchor="middle" class="n-sub">recreates EVERY payment-link customer's link right away</text>
+  <text x="265" y="93" text-anchor="middle" class="n-code">also flags is_mamo_pay_regenerate if no active subscription</text>
+
+  <rect x="550" y="20" width="490" height="100" rx="12" class="node-system"/>
+  <text x="795" y="44" text-anchor="middle" class="n-title">flag-mamo-pay-regenerate — cron, 01:30 UTC</text>
+  <text x="795" y="61" text-anchor="middle" class="n-sub">finds payment-link customers whose OLD-price period</text>
+  <text x="795" y="76" text-anchor="middle" class="n-sub">ended yesterday, with no active subscription</text>
+  <text x="795" y="93" text-anchor="middle" class="n-code">only sets the flag — does NOT touch the MamoPay link</text>
+
+  <line x1="265" y1="120" x2="265" y2="155" class="edge"/>
+  <line x1="265" y1="155" x2="450" y2="155" class="edge"/>
+  <line x1="450" y1="155" x2="450" y2="180" class="edge" marker-end="url(#a7)"/>
+
+  <line x1="795" y1="120" x2="795" y2="155" class="edge"/>
+  <line x1="795" y1="155" x2="630" y2="155" class="edge"/>
+  <line x1="630" y1="155" x2="630" y2="180" class="edge" marker-end="url(#a7)"/>
+
+  <rect x="330" y="180" width="420" height="64" rx="12" class="node-gold"/>
+  <text x="540" y="207" text-anchor="middle" class="n-title">Customer flagged is_mamo_pay_regenerate = true</text>
+  <text x="540" y="224" text-anchor="middle" class="n-sub">only reached by customers with no active subscription</text>
+
+  <line x1="540" y1="244" x2="540" y2="280" class="edge" marker-end="url(#a7)"/>
+
+  <rect x="310" y="280" width="460" height="72" rx="12" class="node-admin"/>
+  <text x="540" y="306" text-anchor="middle" class="n-title">Admin reinitiates the link</text>
+  <text x="540" y="322" text-anchor="middle" class="n-code">POST admin/reinitiate-subscription-link/{id}</text>
+  <text x="540" y="338" text-anchor="middle" class="n-sub">deletes the stale link, creates a fresh one at the current price</text>
+
+  <line x1="540" y1="352" x2="540" y2="388" class="edge" marker-end="url(#a7)"/>
+
+  <rect x="350" y="388" width="380" height="56" rx="12" class="node-gold"/>
+  <text x="540" y="412" text-anchor="middle" class="n-title">show_subscription_modal = true</text>
+  <text x="540" y="428" text-anchor="middle" class="n-sub">frontend prompts the customer to pay again on next login</text>
+
+  <line x1="540" y1="444" x2="540" y2="480" class="edge" marker-end="url(#a7)"/>
+
+  <rect x="360" y="480" width="360" height="56" rx="12" class="node-customer"/>
+  <text x="540" y="504" text-anchor="middle" class="n-title">Customer pays the new link on MamoPay</text>
+  <text x="540" y="520" text-anchor="middle" class="n-code">same one-off link flow as §05</text>
+
+  <line x1="540" y1="536" x2="540" y2="572" class="edge edge-async" marker-end="url(#a7)"/>
+
+  <rect x="280" y="572" width="520" height="88" rx="12" class="node-system"/>
+  <text x="540" y="598" text-anchor="middle" class="n-title">Webhook captures the payment</text>
+  <text x="540" y="614" text-anchor="middle" class="n-code">/webhook/subscription/callback</text>
+  <text x="540" y="630" text-anchor="middle" class="n-sub">creates the next UserSubscription; clears BOTH flags;</text>
+  <text x="540" y="644" text-anchor="middle" class="n-sub">sets subscribed_at if it wasn't already set</text>
+
+  <line x1="540" y1="660" x2="540" y2="686" class="edge" marker-end="url(#a7)"/>
+
+  <rect x="390" y="686" width="300" height="30" rx="15" class="pill-success"/>
+  <text x="540" y="706" text-anchor="middle">back to §03 — Active subscription</text>
+</svg>
+        </div>
+        <figcaption>The merge point is deliberate: whichever trigger set the flag, the customer sits in the same "needs a fresh link" state until an admin explicitly reinitiates it — nothing pushes the new payable link to the customer automatically.</figcaption>
+      </figure>
+
+      <div class="callout warn">
+        <b>Practical implication.</b> Running <code>subscription:update-price</code> updates pricing and every existing link immediately, but any customer it flags (no active subscription at that moment) still needs an admin to hit <b>reinitiate</b> before they see a payable link again. The nightly <code>flag-mamo-pay-regenerate</code> cron is even more hands-off — it only tags lapsed old-price customers during its 14 Jul – 15 Aug 2026 window; it never creates or sends anything by itself. Until admin action happens, that customer's <code>subscription_status</code> stays inactive and they cannot place new orders.
+      </div>
+    </section>
+
+    <!-- ================= 09 TIME & DEADLINES ================= -->
+    <section id="time">
+      <span class="sec-num">09</span>
+      <h2>Everything on a clock, in one place</h2>
+      <p class="sec-intro">Time-based rules are scattered across the sections above — here they're gathered into one plain-English list, alongside the handful of things that are deliberately (or not-so-deliberately) <em>not</em> time-limited today.</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>What</th><th>How long / when</th><th>In plain terms</th></tr></thead>
+          <tbody>
+            <tr><td>Nightly subscription renewal</td><td>Every day, ~5:00 AM Gulf time</td><td>Cash/credit customers due to renew today get their next month started automatically, no one needs to log in.</td></tr>
+            <tr><td>Nightly re-subscribe check</td><td>Every day, ~5:30 AM Gulf time, only between 14 Jul – 15 Aug 2026</td><td>Finds payment-link customers whose plan just lapsed at the old price and tags them so an admin can push out a new link (see §07). It's a one-time cleanup tied to the July 2026 price change, not a permanent job.</td></tr>
+            <tr><td>How long a subscription period lasts</td><td>About one month</td><td>A brand-new cash/credit customer's very first month runs a full calendar month. Every renewal after that — and every payment-link month — runs one day shorter. It's a one-day inconsistency, not something a customer would likely notice, but worth a decision on whether to make it consistent.</td></tr>
+            <tr><td>Cancelling an order</td><td>10 hours after it's approved</td><td>Once an order is approved, the customer or an admin has exactly 10 hours to cancel it. After that, the only options are letting it ship or handling it manually.</td></tr>
+            <tr><td>"Forgot password" link</td><td>Valid 60 minutes; one new link per 60 seconds</td><td>Standard password-reset email — the link stops working after an hour, and a customer can't request a fresh one more than once a minute.</td></tr>
+            <tr><td>Being signed in</td><td>Never expires on its own</td><td>Once someone logs in, their access doesn't time out — they stay signed in until someone explicitly logs them out. There's no automatic "logged out after being idle" rule.</td></tr>
+            <tr><td>Invoice due date</td><td>Same day it's issued</td><td>Every invoice is marked due the day it's created — there's no "pay within 30 days" style grace window built in.</td></tr>
+            <tr><td>A subscription that has lapsed</td><td>No grace period</td><td>The instant a subscription's end date passes, the customer loses their plan discount on new orders — everything is billed at full price. They are <em>not</em> blocked from ordering, though.</td></tr>
+            <tr><td>A MamoPay payment link</td><td>Doesn't expire</td><td>A generated payment link stays payable indefinitely until someone deletes or replaces it — MamoPay isn't told to time it out.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout warn">
+        <b>Worth a decision before scaling up.</b> Two safeguards you'd normally expect aren't actually active: repeated wrong-password attempts don't lock an account (the check exists in the code but never counts the attempts, so it can't trigger), and there's no cooldown on how fast API requests can be made in general. Neither causes a problem today, but both are the kind of thing to tighten before a large marketing push or public launch.
+      </div>
+    </section>
+
+    <!-- ================= 10 NOTIFICATIONS ================= -->
+    <section id="notifications">
+      <span class="sec-num">10</span>
+      <h2>Notifications</h2>
+      <p class="sec-intro">Only email and WhatsApp exist — no SMS, no push. WhatsApp is sent through a queued job (Interakt API); everything else, including MamoPay calls, runs synchronously inside the request.</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Trigger</th><th>Channel</th><th>Goes to</th></tr></thead>
+          <tbody>
+            <tr><td>Customer approved (auto or manual)</td><td>Email + WhatsApp</td><td>Customer</td></tr>
+            <tr><td>Customer deactivated</td><td>WhatsApp</td><td>Customer</td></tr>
+            <tr><td>Representative account created</td><td>Email + WhatsApp</td><td>Representative</td></tr>
+            <tr><td>Sales Team account created</td><td>Email</td><td>New staff member</td></tr>
+            <tr><td>Discount approved / rejected</td><td>Email</td><td>Sales rep who onboarded the customer</td></tr>
+            <tr><td>Representative places an order</td><td>Email</td><td>Parent customer</td></tr>
+            <tr><td>Order cancelled</td><td>Email (two templates)</td><td>Customer, and logistics inbox</td></tr>
+            <tr><td>Recurring MamoPay charge fails</td><td>Email + WhatsApp</td><td>Customer</td></tr>
+            <tr><td>Order / subscription invoice generated</td><td>Email (PDF attached)</td><td>Customer, and an admin copy for online orders</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <footer>
+      Reflects the backend logic as implemented in the <code>cryo-backend</code> repository, reviewed August 2026. Field and status names are taken directly from the code so this can be cross-checked against it at any time.
+    </footer>
+  </main>
+</div>

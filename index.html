@@ -1,4 +1,5 @@
 <title>Cryo Backend — Customer &amp; Subscription Lifecycle</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
@@ -105,8 +106,13 @@
   .sec-intro { color: var(--ink-soft); max-width: 74ch; margin-bottom: 22px; font-size: 14.5px; }
 
   figure { margin: 0 0 18px; background: var(--surface); border:1px solid var(--border); border-radius:14px; padding: 22px 22px 16px; box-shadow: var(--shadow); }
-  .diagram-scroll { overflow-x: auto; }
-  figure svg { display:block; max-width:100%; height:auto; margin: 0 auto; }
+  .diagram-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  figure svg { display:block; margin: 0 auto; }
+  /* above ~700px there's room to shrink diagrams to fit; below it, keep native text
+     size and let .diagram-scroll handle horizontal scrolling instead of shrinking text to nothing */
+  @media (min-width: 701px) {
+    figure svg { max-width:100%; height:auto; }
+  }
   figcaption { font-size: 12.5px; color: var(--ink-faint); margin-top:12px; padding-top:12px; border-top:1px dashed var(--border); }
 
   .n-title { font: 700 12.5px var(--font-display); fill: var(--ink); }
@@ -177,8 +183,29 @@
 
   @media (max-width: 880px) {
     .shell { flex-direction: column; }
-    nav.toc { position: static; width:100%; height:auto; border-right:none; border-bottom:1px solid var(--border); padding: 18px 20px; }
-    main { padding: 28px 20px 80px; }
+    nav.toc {
+      position: sticky; top:0; z-index:5; width:100%; height:auto;
+      border-right:none; border-bottom:1px solid var(--border);
+      padding: 12px 16px; background: var(--bg);
+      display:flex; align-items:center; gap:14px; overflow-x:auto; -webkit-overflow-scrolling:touch;
+    }
+    .toc-brand, .toc-sub { flex: 0 0 auto; margin-bottom:0; white-space:nowrap; }
+    .toc-sub { display:none; }
+    nav.toc > a {
+      flex: 0 0 auto; white-space:nowrap; margin-bottom:0;
+      background: var(--surface-2); border:1px solid var(--border);
+    }
+    main { padding: 20px 16px 64px; }
+  }
+
+  @media (max-width: 600px) {
+    h1 { font-size: 24px; }
+    .masthead p { font-size: 14.5px; }
+    .legend { padding: 12px 14px; gap: 8px 16px; }
+    figure { padding: 16px 14px 14px; border-radius:12px; }
+    section { margin-bottom: 56px; }
+    .difftabs-label { font-size: 12px; padding: 11px 8px; }
+    .diff-row, .diff-total { font-size: 12.8px; }
   }
 </style>
 
@@ -222,7 +249,7 @@
       <p class="sec-intro">One account moves through four phases: it is created and approved, it gets an active subscription, it places orders against that subscription's allowance, and it renews — either automatically (cash/credit) or by MamoPay charging the customer's card again (payment‑link). Everything below drills into one of these phases.</p>
       <figure>
         <div class="diagram-scroll">
-<svg viewBox="0 0 1040 1420" role="img" aria-label="End to end lifecycle: admin creates customer, approval gate, subscription split by payment mode, order placement with pool engine, delivery, and renewal loop back into active subscription.">
+<svg viewBox="0 0 1040 1420" width="1040" height="1420" role="img" aria-label="End to end lifecycle: admin creates customer, approval gate, subscription split by payment mode, order placement with pool engine, delivery, and renewal loop back into active subscription.">
   <defs>
     <marker id="a0" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path class="arrowhead" d="M0,0 L10,5 L0,10 z"/>
@@ -331,7 +358,7 @@
 
       <figure>
         <div class="diagram-scroll">
-<svg viewBox="0 0 1160 460" role="img" aria-label="Registration decision flow: admin creates customer, discount checked against auto-approval limit, either auto-activated or sent for manual admin approval, both paths converge on sending credentials.">
+<svg viewBox="0 0 1160 460" width="1160" height="460" role="img" aria-label="Registration decision flow: admin creates customer, discount checked against auto-approval limit, either auto-activated or sent for manual admin approval, both paths converge on sending credentials.">
   <defs>
     <marker id="a1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path class="arrowhead" d="M0,0 L10,5 L0,10 z"/>
@@ -402,7 +429,7 @@
 
       <figure>
         <div class="diagram-scroll">
-<svg viewBox="0 0 1000 300" role="img" aria-label="Two tables: users table holding customer and customer representative roles gated by an inactive-check middleware, and admins table holding admin and sales team roles with no such gate.">
+<svg viewBox="0 0 1000 300" width="1000" height="300" role="img" aria-label="Two tables: users table holding customer and customer representative roles gated by an inactive-check middleware, and admins table holding admin and sales team roles with no such gate.">
   <defs>
     <marker id="a2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path class="arrowhead" d="M0,0 L10,5 L0,10 z"/>
@@ -467,7 +494,7 @@
 
       <figure>
         <div class="diagram-scroll">
-<svg viewBox="0 0 1080 560" role="img" aria-label="Two subscription creation paths, cash or credit versus payment link through MamoPay webhook, converging on the hasActiveSubscription gate that also requires a paid caution deposit for payment link customers.">
+<svg viewBox="0 0 1080 560" width="1080" height="560" role="img" aria-label="Two subscription creation paths, cash or credit versus payment link through MamoPay webhook, converging on the hasActiveSubscription gate that also requires a paid caution deposit for payment link customers.">
   <defs>
     <marker id="a3" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path class="arrowhead" d="M0,0 L10,5 L0,10 z"/>
@@ -556,7 +583,7 @@
 
       <figure>
         <div class="diagram-scroll">
-<svg viewBox="0 0 1080 260" role="img" aria-label="Pool allowance gauge: already consumed this period, plus this orders plan included free quantity, plus chargeable overage, feeding into VAT calculation and payment branch.">
+<svg viewBox="0 0 1080 260" width="1080" height="260" role="img" aria-label="Pool allowance gauge: already consumed this period, plus this orders plan included free quantity, plus chargeable overage, feeding into VAT calculation and payment branch.">
   <defs>
     <marker id="a4" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path class="arrowhead" d="M0,0 L10,5 L0,10 z"/>
@@ -597,7 +624,7 @@
 
       <figure>
         <div class="diagram-scroll">
-<svg viewBox="0 0 1080 200" role="img" aria-label="Order status progression from pending through processing shipped and delivered, requiring approval first, cancellable within 10 hours of approval by customer or admin.">
+<svg viewBox="0 0 1080 200" width="1080" height="200" role="img" aria-label="Order status progression from pending through processing shipped and delivered, requiring approval first, cancellable within 10 hours of approval by customer or admin.">
   <defs>
     <marker id="a4b" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path class="arrowhead" d="M0,0 L10,5 L0,10 z"/>
@@ -642,7 +669,7 @@
 
       <figure>
         <div class="diagram-scroll">
-<svg viewBox="0 0 1080 640" role="img" aria-label="Sequence diagram across three lifelines: customer, cryo backend, and mamopay, showing link creation, payment, return url verification, saved card charge, and the asynchronous webhook confirming recurring billing.">
+<svg viewBox="0 0 1080 640" width="1080" height="640" role="img" aria-label="Sequence diagram across three lifelines: customer, cryo backend, and mamopay, showing link creation, payment, return url verification, saved card charge, and the asynchronous webhook confirming recurring billing.">
   <defs>
     <marker id="a5" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path class="arrowhead" d="M0,0 L10,5 L0,10 z"/>
@@ -721,7 +748,7 @@
 
       <figure>
         <div class="diagram-scroll">
-<svg viewBox="0 0 1080 210" role="img" aria-label="24 hour timeline showing subscription renew job at 01:00 and flag mamo pay regenerate job at 01:30, with a note on the manual one-off price update command.">
+<svg viewBox="0 0 1080 210" width="1080" height="210" role="img" aria-label="24 hour timeline showing subscription renew job at 01:00 and flag mamo pay regenerate job at 01:30, with a note on the manual one-off price update command.">
   <defs>
     <marker id="a6" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path class="arrowhead" d="M0,0 L10,5 L0,10 z"/>
@@ -836,7 +863,7 @@
 
       <figure>
         <div class="diagram-scroll">
-<svg viewBox="0 0 1080 740" role="img" aria-label="Two triggers, a manual price update command and a nightly regenerate flag cron, both mark a customer as needing regeneration; an admin must then reinitiate the MamoPay link, which flips a modal flag the frontend reads, the customer pays, and the webhook clears both flags once captured.">
+<svg viewBox="0 0 1080 740" width="1080" height="740" role="img" aria-label="Two triggers, a manual price update command and a nightly regenerate flag cron, both mark a customer as needing regeneration; an admin must then reinitiate the MamoPay link, which flips a modal flag the frontend reads, the customer pays, and the webhook clears both flags once captured.">
   <defs>
     <marker id="a7" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path class="arrowhead" d="M0,0 L10,5 L0,10 z"/>
